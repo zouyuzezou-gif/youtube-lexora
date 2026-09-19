@@ -1,0 +1,13 @@
+# YouTube Lexora Chrome 扩展版
+
+扩展直接运行在已登录的 YouTube 页面中。点击工具栏里的 YouTube Lexora 图标会打开侧边栏。
+
+## 首次使用
+
+1. 在 `chrome://extensions` 开启“开发者模式”。
+2. 选择“加载已解压的扩展程序”，然后选择本目录。
+3. 打开 YouTube 视频，点击 YouTube Lexora 图标。
+4. 在“设置”中分别粘贴 DeepSeek 与 Supadata API 密钥并保存。
+5. 点击“获取当前视频完整字幕”。应用先暂停视频并翻译整段字幕；准备完成后播放视频，字幕随播放进度翻页。
+
+密钥只保存在当前 Chrome 配置的扩展本地存储中。请勿在共享电脑中保存个人密钥。
