@@ -22,14 +22,10 @@ async function translateVisible(){
   const progress=()=>{$('status').textContent=`正在准备整段中英字幕：${done} / ${target.rows.length} 条（${Math.round(done/target.rows.length*100)}%）`;};
   try{
     progress();await call('pause');
-    for(let i=0;i<pending.length;i+=10){
-      if(version!==generation||doc!==target)return;
-      const batch=pending.slice(i,i+10);
-      const translated=await call('translateBatch',{videoId:target.id,rowIds:batch.map(row=>row.id)});
-      Object.assign(target.translations,translated);
-      if(version!==generation||doc!==target)return;
-      done+=batch.length;render();progress();
-    }
+    const batches=[];for(let i=0;i<pending.length;i+=30)batches.push(pending.slice(i,i+30));
+    let cursor=0;
+    const worker=async()=>{while(cursor<batches.length){if(version!==generation||doc!==target)return;const batch=batches[cursor++],translated=await call('translateBatch',{videoId:target.id,rowIds:batch.map(row=>row.id)});if(version!==generation||doc!==target)return;Object.assign(target.translations,translated);done+=batch.length;render();progress();}};
+    await Promise.all(Array.from({length:Math.min(3,batches.length)},worker));
     $('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';
   }catch(error){if(version===generation&&doc===target){$('status').textContent=`准备中断：${error.message} 已完成的译文已缓存。`;$('status').classList.add('error');$('resume-translation').hidden=false;}}
   finally{busy=false;$('stop').disabled=true;if(doc&&doc!==target)translateVisible();}

@@ -1,6 +1,6 @@
 {
   "name": "youtube-lexora",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Bilingual YouTube transcripts and contextual English learning",
   "scripts": { "test": "node --test tests/*.test.cjs" }
