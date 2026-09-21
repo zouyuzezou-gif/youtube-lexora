@@ -54,6 +54,7 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
   if(message?.type==='lexora-playback')return;
   (async()=>{
     const action=message?.action,data=message?.data||{};
+    if(action==='capabilities')return{version:chrome.runtime.getManifest().version,maxBatch:30,parallelBatches:3};
     if(action==='state')return activeState();
     if(action==='getSettings'){const value=await settings();return{...value,keySaved:!!value.key,supadataSaved:!!value.supadataKey,key:'',supadataKey:''};}
     if(action==='saveSettings'){const old=await settings(),next={...old,endpoint:'https://api.deepseek.com/chat/completions',model:'deepseek-flash'};if(data.key)next.key=String(data.key).trim();if(data.supadataKey)next.supadataKey=String(data.supadataKey).trim();if(data.clearKey)delete next.key;if(data.clearSupadata)delete next.supadataKey;await setStore({settings:next});return{keySaved:!!next.key,supadataSaved:!!next.supadataKey};}

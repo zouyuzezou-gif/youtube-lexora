@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id),C=LexoraCore,pageSize=30;
-let doc=null,page=0,playingId='',lastTime=0,busy=false,generation=0,selected=null,notes=[];
+let doc=null,page=0,playingId='',lastTime=0,busy=false,generation=0,selected=null,notes=[],batchSize=10,parallelBatches=3;
 const call=async(action,data={})=>{const result=await chrome.runtime.sendMessage({action,data});if(!result?.ok)throw new Error(result?.error||'扩展服务没有响应。');return result.value;};
 const stamp=value=>`${Math.floor(value/60)}:${String(Math.floor(value%60)).padStart(2,'0')}`;
 function showTab(name){document.querySelectorAll('.tab').forEach(x=>x.hidden=x.id!==`${name}-tab`);document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));}
@@ -22,10 +22,19 @@ async function translateVisible(){
   const progress=()=>{$('status').textContent=`正在准备整段中英字幕：${done} / ${target.rows.length} 条（${Math.round(done/target.rows.length*100)}%）`;};
   try{
     progress();await call('pause');
-    const batches=[];for(let i=0;i<pending.length;i+=30)batches.push(pending.slice(i,i+30));
+    const requestBatch=async batch=>{
+      try{return await call('translateBatch',{videoId:target.id,rowIds:batch.map(row=>row.id)});}
+      catch(error){
+        if(batch.length<=10||!/1\s*至\s*10/.test(error.message))throw error;
+        batchSize=10;const translated={};
+        for(let i=0;i<batch.length;i+=10)Object.assign(translated,await call('translateBatch',{videoId:target.id,rowIds:batch.slice(i,i+10).map(row=>row.id)}));
+        return translated;
+      }
+    };
+    const batches=[];for(let i=0;i<pending.length;i+=batchSize)batches.push(pending.slice(i,i+batchSize));
     let cursor=0;
-    const worker=async()=>{while(cursor<batches.length){if(version!==generation||doc!==target)return;const batch=batches[cursor++],translated=await call('translateBatch',{videoId:target.id,rowIds:batch.map(row=>row.id)});if(version!==generation||doc!==target)return;Object.assign(target.translations,translated);done+=batch.length;render();progress();}};
-    await Promise.all(Array.from({length:Math.min(3,batches.length)},worker));
+    const worker=async()=>{while(cursor<batches.length){if(version!==generation||doc!==target)return;const batch=batches[cursor++],translated=await requestBatch(batch);if(version!==generation||doc!==target)return;Object.assign(target.translations,translated);done+=batch.length;render();progress();}};
+    await Promise.all(Array.from({length:Math.min(parallelBatches,batches.length)},worker));
     $('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';
   }catch(error){if(version===generation&&doc===target){$('status').textContent=`准备中断：${error.message} 已完成的译文已缓存。`;$('status').classList.add('error');$('resume-translation').hidden=false;}}
   finally{busy=false;$('stop').disabled=true;if(doc&&doc!==target)translateVisible();}
@@ -50,4 +59,4 @@ $('note-search').oninput=renderNotes;
 async function loadSettings(){const settings=await call('getSettings');$('settings-status').textContent=`DeepSeek：${settings.keySaved?'已保存':'未配置'} · Supadata：${settings.supadataSaved?'已保存':'未配置'}`;}
 $('save-settings').onclick=async()=>{try{const saved=await call('saveSettings',{key:$('deepseek-key').value,supadataKey:$('supadata-key').value,clearKey:$('clear-deepseek').checked,clearSupadata:$('clear-supadata').checked});$('deepseek-key').value='';$('supadata-key').value='';$('clear-deepseek').checked=false;$('clear-supadata').checked=false;$('settings-status').textContent=`已保存 · DeepSeek：${saved.keySaved?'是':'否'} · Supadata：${saved.supadataSaved?'是':'否'}`;}catch(error){$('settings-status').textContent=error.message;}};
 $('test-ai').onclick=async()=>{try{$('settings-status').textContent='正在测试…';$('settings-status').textContent=`连接成功：${await call('testAI')}`;}catch(error){$('settings-status').textContent=error.message;}};
-(async()=>{try{notes=await call('notes');renderNotes();await loadSettings();const state=await call('state');$('video-state').textContent=state.title||'YouTube 视频';await checkCached();}catch(error){$('video-state').textContent='请打开 YouTube 视频';}})();
+(async()=>{try{notes=await call('notes');renderNotes();await loadSettings();try{const capabilities=await call('capabilities');batchSize=Math.max(1,Math.min(30,Number(capabilities.maxBatch)||10));parallelBatches=Math.max(1,Math.min(3,Number(capabilities.parallelBatches)||1));}catch{}const state=await call('state');$('video-state').textContent=state.title||'YouTube 视频';await checkCached();}catch(error){$('video-state').textContent='请打开 YouTube 视频';}})();
