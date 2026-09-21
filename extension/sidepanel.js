@@ -33,8 +33,25 @@ async function translateVisible(){
     };
     const batches=[];for(let i=0;i<pending.length;i+=batchSize)batches.push(pending.slice(i,i+batchSize));
     let cursor=0;
-    const worker=async()=>{while(cursor<batches.length){if(version!==generation||doc!==target)return;const batch=batches[cursor++],translated=await requestBatch(batch);if(version!==generation||doc!==target)return;Object.assign(target.translations,translated);done+=batch.length;render();progress();}};
-    await Promise.all(Array.from({length:Math.min(parallelBatches,batches.length)},worker));
+    const worker=async()=>{while(cursor<batches.length){
+      if(version!==generation||doc!==target)return;
+      const batch=batches[cursor++];let translated,lastError;
+      for(let attempt=0;attempt<6;attempt++){
+        try{translated=await requestBatch(batch);lastError=null;break;}
+        catch(error){
+          lastError=error;
+          if(/密钥无效|额度不足|请先在设置|仅连接 DeepSeek|每批字幕需/.test(error.message)||attempt===5)break;
+          const delay=C.retryDelayMs(attempt);$('status').textContent=`网络或 AI 服务暂时不稳定，${Math.ceil(delay/1000)} 秒后自动继续（第 ${attempt+1}/6 次重试）…`;
+          await new Promise(resolve=>setTimeout(resolve,delay));
+          if(version!==generation||doc!==target)return;
+        }
+      }
+      if(lastError)throw lastError;
+      if(version!==generation||doc!==target)return;
+      Object.assign(target.translations,translated);done+=batch.length;render();progress();
+    }};
+    const outcomes=await Promise.allSettled(Array.from({length:Math.min(parallelBatches,batches.length)},worker)),failure=outcomes.find(result=>result.status==='rejected');
+    if(failure)throw failure.reason;
     $('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';
   }catch(error){if(version===generation&&doc===target){$('status').textContent=`准备中断：${error.message} 已完成的译文已缓存。`;$('status').classList.add('error');$('resume-translation').hidden=false;}}
   finally{busy=false;$('stop').disabled=true;if(doc&&doc!==target)translateVisible();}
@@ -59,4 +76,4 @@ $('note-search').oninput=renderNotes;
 async function loadSettings(){const settings=await call('getSettings');$('settings-status').textContent=`DeepSeek：${settings.keySaved?'已保存':'未配置'} · Supadata：${settings.supadataSaved?'已保存':'未配置'}`;}
 $('save-settings').onclick=async()=>{try{const saved=await call('saveSettings',{key:$('deepseek-key').value,supadataKey:$('supadata-key').value,clearKey:$('clear-deepseek').checked,clearSupadata:$('clear-supadata').checked});$('deepseek-key').value='';$('supadata-key').value='';$('clear-deepseek').checked=false;$('clear-supadata').checked=false;$('settings-status').textContent=`已保存 · DeepSeek：${saved.keySaved?'是':'否'} · Supadata：${saved.supadataSaved?'是':'否'}`;}catch(error){$('settings-status').textContent=error.message;}};
 $('test-ai').onclick=async()=>{try{$('settings-status').textContent='正在测试…';$('settings-status').textContent=`连接成功：${await call('testAI')}`;}catch(error){$('settings-status').textContent=error.message;}};
-(async()=>{try{notes=await call('notes');renderNotes();await loadSettings();try{const capabilities=await call('capabilities');batchSize=Math.max(1,Math.min(30,Number(capabilities.maxBatch)||10));parallelBatches=Math.max(1,Math.min(3,Number(capabilities.parallelBatches)||1));}catch{}const state=await call('state');$('video-state').textContent=state.title||'YouTube 视频';await checkCached();}catch(error){$('video-state').textContent='请打开 YouTube 视频';}})();
+(async()=>{try{notes=await call('notes');renderNotes();await loadSettings();try{const capabilities=await call('capabilities');batchSize=Math.max(1,Math.min(30,Number(capabilities.maxBatch)||10));parallelBatches=Math.max(1,Math.min(5,Number(capabilities.parallelBatches)||1));}catch{}const state=await call('state');$('video-state').textContent=state.title||'YouTube 视频';await checkCached();}catch(error){$('video-state').textContent='请打开 YouTube 视频';}})();

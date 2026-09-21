@@ -6,14 +6,23 @@ const getStore=keys=>chrome.storage.local.get(keys);
 const setStore=value=>chrome.storage.local.set(value);
 let libraryPromise,librarySaves=Promise.resolve();
 async function settings(){return(await getStore(['settings'])).settings||{endpoint:'https://api.deepseek.com/chat/completions',model:'deepseek-flash'};}
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function complete(kind,data){
   const config=await settings();if(!config.key)throw new Error('请先在设置中保存 DeepSeek API 密钥。');
   const endpoint=new URL(config.endpoint||'https://api.deepseek.com/chat/completions');if(endpoint.protocol!=='https:'||endpoint.hostname!=='api.deepseek.com')throw new Error('扩展版仅连接 DeepSeek 官方接口。');
   const requestBody={model:config.model||'deepseek-flash',messages:C.messagesFor(kind,data),thinking:{type:'disabled'},max_tokens:kind==='translateBatch'||kind==='overview'?4096:kind==='explain'?2048:1024};
   if(kind==='translateBatch'||kind==='overview')requestBody.response_format={type:'json_object'};
-  const response=await fetch(endpoint.href,{method:'POST',headers:{'content-type':'application/json','authorization':`Bearer ${config.key}`},body:JSON.stringify(requestBody)});
-  if(response.status===401)throw new Error('DeepSeek 密钥无效。');if(response.status===402||response.status===429)throw new Error('DeepSeek 额度不足或请求频繁。');if(!response.ok)throw new Error(`DeepSeek 暂时不可用（${response.status}）。`);
-  const responseBody=await response.json();const text=responseBody?.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())throw new Error('DeepSeek 没有返回文本。');return text.trim();
+  for(let attempt=0;attempt<3;attempt++){
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),60000);let response;
+    try{response=await fetch(endpoint.href,{method:'POST',headers:{'content-type':'application/json','authorization':`Bearer ${config.key}`},body:JSON.stringify(requestBody),signal:controller.signal});}
+    catch(error){clearTimeout(timeout);if(attempt<2){await sleep(C.retryDelayMs(attempt));continue;}throw new Error(error.name==='AbortError'?'DeepSeek 请求超过 60 秒，稍后可继续准备。':'无法连接 DeepSeek，请检查网络后继续。');}
+    clearTimeout(timeout);
+    if([408,429,500,502,503,504].includes(response.status)&&attempt<2){await sleep(C.retryDelayMs(attempt,response.headers.get('retry-after')));continue;}
+    if(response.status===401)throw new Error('DeepSeek 密钥无效。');if(response.status===402)throw new Error('DeepSeek 额度不足。');if(response.status===429)throw new Error('DeepSeek 请求频繁，已重试三次；稍后点击继续准备。');if(!response.ok)throw new Error(`DeepSeek 暂时不可用（${response.status}）。`);
+    let responseBody;try{responseBody=await response.json();}catch{throw new Error('DeepSeek 返回内容无法读取，请稍后继续。');}
+    const text=responseBody?.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())throw new Error('DeepSeek 没有返回文本。');return text.trim();
+  }
+  throw new Error('DeepSeek 请求未完成，请稍后继续。');
 }
 async function getLibrary(){if(!libraryPromise)libraryPromise=getStore(['library']).then(value=>value.library||{});return libraryPromise;}
 async function saveLibrary(library){
@@ -54,7 +63,7 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
   if(message?.type==='lexora-playback')return;
   (async()=>{
     const action=message?.action,data=message?.data||{};
-    if(action==='capabilities')return{version:chrome.runtime.getManifest().version,maxBatch:30,parallelBatches:3};
+    if(action==='capabilities')return{version:chrome.runtime.getManifest().version,maxBatch:30,parallelBatches:5};
     if(action==='state')return activeState();
     if(action==='getSettings'){const value=await settings();return{...value,keySaved:!!value.key,supadataSaved:!!value.supadataKey,key:'',supadataKey:''};}
     if(action==='saveSettings'){const old=await settings(),next={...old,endpoint:'https://api.deepseek.com/chat/completions',model:'deepseek-flash'};if(data.key)next.key=String(data.key).trim();if(data.supadataKey)next.supadataKey=String(data.supadataKey).trim();if(data.clearKey)delete next.key;if(data.clearSupadata)delete next.supadataKey;await setStore({settings:next});return{keySaved:!!next.key,supadataSaved:!!next.supadataKey};}

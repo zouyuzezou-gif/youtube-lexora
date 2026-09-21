@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Lexora",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "在已登录的 YouTube 页面中学习中英字幕，并用 AI 理解语境。",
   "permissions": ["sidePanel", "storage", "unlimitedStorage", "tabs"],
   "host_permissions": [

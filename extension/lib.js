@@ -80,6 +80,10 @@
   }
   function chunksFor(rows,limit=18000){const chunks=[];let part=[],size=0;for(const row of rows){const n=row.text.length+60;if(part.length&&size+n>limit){chunks.push(part);part=[];size=0;}part.push(row);size+=n;}if(part.length)chunks.push(part);return chunks;}
   function playbackIndex(rows,time){let low=0,high=rows.length-1,index=0;while(low<=high){const mid=(low+high)>>1;if(rows[mid].time<=time){index=mid;low=mid+1;}else high=mid-1;}return index;}
-  const api={normalize,videoIdentity,normalizeTranscript,compactRows,messagesFor,parseTranslations,parseOverview,chunksFor,playbackIndex};
+  function retryDelayMs(attempt,retryAfter=''){
+    const seconds=Number(retryAfter);if(Number.isFinite(seconds)&&seconds>0)return Math.min(8000,seconds*1000);
+    return Math.min(8000,700*(2**Math.max(0,attempt)));
+  }
+  const api={normalize,videoIdentity,normalizeTranscript,compactRows,messagesFor,parseTranslations,parseOverview,chunksFor,playbackIndex,retryDelayMs};
   root.LexoraCore=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

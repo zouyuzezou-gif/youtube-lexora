@@ -23,3 +23,6 @@ test('very long transcripts are compacted into readable rows and retain complete
   const result=C.compactRows(rows,translations);
   assert.equal(result.changed,true);assert.ok(result.rows.length<500);assert.match(result.rows[0].text,/word0 word1/);assert.ok(result.translations['0']);
 });
+test('retry backoff respects server guidance and remains bounded',()=>{
+  assert.equal(C.retryDelayMs(0),700);assert.equal(C.retryDelayMs(2),2800);assert.equal(C.retryDelayMs(0,'3'),3000);assert.equal(C.retryDelayMs(0,'60'),8000);
+});
