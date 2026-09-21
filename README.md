@@ -12,6 +12,7 @@ Learn English from YouTube with bilingual transcripts and contextual AI explanat
 - 侧栏与后台版本不一致时自动协商批量大小；旧后台只接受 10 条时自动降级重试。
 - 搜索完整字幕，点击时间点回放，解释短语与概念。
 - 生成中文概览与章节要点，保存和搜索学习笔记。
+- 将视频全部中英对话导出为可打印学习资料；DeepSeek 会整理对应的重点语句与地道词组。导出页支持直接打印、另存为 PDF 和保存独立 HTML 文件，AI 整理结果会缓存。
 
 ## 安装
 
@@ -21,6 +22,7 @@ Learn English from YouTube with bilingual transcripts and contextual AI explanat
 4. 刷新已经打开的 YouTube 页面，点击 Chrome 工具栏的扩展图标，选择 **YouTube Lexora**。
 5. 在侧栏“设置”分别填入自己的 DeepSeek 与 Supadata API 密钥并保存，然后测试 DeepSeek。
 6. 打开普通 YouTube 视频，点击“获取当前视频完整字幕”。准备完成后播放视频。
+7. 打开“导出”标签，点击“AI 整理并打开导出页”，即可打印或保存完整语料。
 
 更新本地代码后，需要在扩展管理页点击扩展的刷新按钮，并刷新 YouTube 页面。
 

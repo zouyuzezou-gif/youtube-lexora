@@ -10,8 +10,8 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function complete(kind,data){
   const config=await settings();if(!config.key)throw new Error('请先在设置中保存 DeepSeek API 密钥。');
   const endpoint=new URL(config.endpoint||'https://api.deepseek.com/chat/completions');if(endpoint.protocol!=='https:'||endpoint.hostname!=='api.deepseek.com')throw new Error('扩展版仅连接 DeepSeek 官方接口。');
-  const requestBody={model:config.model||'deepseek-flash',messages:C.messagesFor(kind,data),thinking:{type:'disabled'},max_tokens:kind==='translateBatch'||kind==='overview'?4096:kind==='explain'?2048:1024};
-  if(kind==='translateBatch'||kind==='overview')requestBody.response_format={type:'json_object'};
+  const requestBody={model:config.model||'deepseek-flash',messages:C.messagesFor(kind,data),thinking:{type:'disabled'},max_tokens:['translateBatch','overview','studyGuide'].includes(kind)?4096:kind==='explain'?2048:1024};
+  if(['translateBatch','overview','studyGuide'].includes(kind))requestBody.response_format={type:'json_object'};
   for(let attempt=0;attempt<3;attempt++){
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),60000);let response;
     try{response=await fetch(endpoint.href,{method:'POST',headers:{'content-type':'application/json','authorization':`Bearer ${config.key}`},body:JSON.stringify(requestBody),signal:controller.signal});}
@@ -34,7 +34,7 @@ function compactDocument(doc){
   if(doc.compactionVersion===1)return false;
   const compacted=C.compactRows(doc.rows,doc.translations||{});doc.compactionVersion=1;
   if(!compacted.changed)return false;
-  doc.rows=compacted.rows;doc.translations=compacted.translations;doc.overviews={};return true;
+  doc.rows=compacted.rows;doc.translations=compacted.translations;doc.overviews={};delete doc.studyGuide;return true;
 }
 async function translateRows(doc,rows){
   if(!rows.length)return{};
@@ -55,9 +55,9 @@ async function transcript(info){
   let response=await fetch(url,{headers:{'x-api-key':config.supadataKey}}),result=await response.json().catch(()=>({}));
   if(response.status===202&&result.jobId){for(let i=0;i<45;i++){await new Promise(r=>setTimeout(r,1000));response=await fetch(`https://api.supadata.ai/v1/transcript/${encodeURIComponent(result.jobId)}`,{headers:{'x-api-key':config.supadataKey}});result=await response.json();if(result.status==='failed')throw new Error('原生字幕获取失败。');if(result.status==='completed'){result=result.result||result;break;}}}
   if(response.status===206)throw new Error('该视频没有可用的原生字幕。');if(!response.ok)throw new Error(`Supadata 字幕服务不可用（${response.status}）。`);
-  const doc={...identity,...C.normalizeTranscript(result),title:C.normalize(info.title).slice(0,400),translations:{},overviews:{},accessed:Date.now()};library[doc.id]=doc;await saveLibrary(library);return doc;
+  const doc={...identity,...C.normalizeTranscript(result),title:C.normalize(info.title).slice(0,400),translations:{},overviews:{},studyGuide:null,accessed:Date.now()};library[doc.id]=doc;await saveLibrary(library);return doc;
 }
-async function updateDoc(id,fn){const library=await getLibrary(),doc=library[id];if(!doc)throw new Error('请先获取完整字幕。');const value=await fn(doc);doc.accessed=Date.now();await saveLibrary(library);return value;}
+async function updateDoc(id,fn){const library=await getLibrary(),doc=library[id];if(!doc)throw new Error('请先获取完整字幕。');const persist=async()=>{doc.accessed=Date.now();await saveLibrary(library);};try{return await fn(doc,persist);}finally{await persist();}}
 async function activeState(){const [tab]=await chrome.tabs.query({active:true,currentWindow:true});if(!tab?.id||!tab.url?.startsWith('https://www.youtube.com/'))throw new Error('请先在当前窗口打开 YouTube 视频。');const result=await chrome.tabs.sendMessage(tab.id,{type:'lexora-state'});if(!result?.ok)throw new Error(result?.error||'无法读取当前视频。');return{...result.value,tabId:tab.id};}
 chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
   if(message?.type==='lexora-playback')return;
@@ -73,6 +73,9 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
     if(action==='translateBatch')return updateDoc(data.videoId,async doc=>{const rows=data.rowIds.map(id=>doc.rows.find(row=>row.id===String(id))).filter(Boolean),pending=rows.filter(row=>!doc.translations[row.id]);if(pending.length)Object.assign(doc.translations,await translateRows(doc,pending));return Object.fromEntries(rows.map(row=>[row.id,doc.translations[row.id]]));});
     if(action==='explain')return complete('explain',data);
     if(action==='overview')return updateDoc(data.videoId,async doc=>{const parts=C.chunksFor(doc.rows);for(let i=0;i<parts.length;i++)if(!doc.overviews[i])doc.overviews[i]=C.parseOverview(await complete('overview',{title:doc.title,rows:parts[i]}),parts[i]);return doc.overviews;});
+    if(action==='studyGuide')return updateDoc(data.videoId,async(doc,persist)=>{const chunks=C.chunksFor(doc.rows,12000);if(doc.studyGuide?.version!==1)doc.studyGuide={version:1,parts:{},generatedAt:0};for(let i=0;i<chunks.length;i++)if(!doc.studyGuide.parts[i]){const rows=chunks[i].map(row=>({...row,translation:doc.translations[row.id]||''}));doc.studyGuide.parts[i]=C.parseStudyGuide(await complete('studyGuide',{title:doc.title,rows}),rows);await persist();}doc.studyGuide.generatedAt=Date.now();return doc.studyGuide;});
+    if(action==='exportData'){const library=await getLibrary(),item=library[String(data.videoId||'')];if(!item)throw new Error('找不到要导出的字幕。');return{id:item.id,url:item.url,title:item.title,lang:item.lang,rows:item.rows,translations:item.translations||{},studyGuide:item.studyGuide||null};}
+    if(action==='openExport'){const library=await getLibrary(),id=String(data.videoId||'');if(!library[id])throw new Error('找不到要导出的字幕。');await chrome.tabs.create({url:chrome.runtime.getURL(`export.html?id=${encodeURIComponent(id)}`)});return true;}
     if(action==='notes'){return(await getStore(['notes'])).notes||[];}
     if(action==='saveNote'){const notes=(await getStore(['notes'])).notes||[],index=notes.findIndex(note=>note.id===data.id);if(index>=0)notes[index]=data;else notes.unshift(data);await setStore({notes:notes.slice(0,500)});return notes;}
     if(action==='deleteNote'){const notes=((await getStore(['notes'])).notes||[]).filter(note=>note.id!==data.id);await setStore({notes});return notes;}

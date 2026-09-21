@@ -16,7 +16,7 @@ function render(){
 async function translateVisible(){
   if(!doc||busy)return;
   const target=doc,version=generation,pending=target.rows.filter(row=>!target.translations[row.id]);
-  if(!pending.length){$('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';return;}
+  if(!pending.length){$('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';renderExportStatus();return;}
   busy=true;$('stop').disabled=false;$('resume-translation').hidden=true;$('status').classList.remove('error');
   let done=target.rows.length-pending.length;
   const progress=()=>{$('status').textContent=`正在准备整段中英字幕：${done} / ${target.rows.length} 条（${Math.round(done/target.rows.length*100)}%）`;};
@@ -48,15 +48,15 @@ async function translateVisible(){
       }
       if(lastError)throw lastError;
       if(version!==generation||doc!==target)return;
-      Object.assign(target.translations,translated);done+=batch.length;render();progress();
+      Object.assign(target.translations,translated);done+=batch.length;render();progress();renderExportStatus();
     }};
     const outcomes=await Promise.allSettled(Array.from({length:Math.min(parallelBatches,batches.length)},worker)),failure=outcomes.find(result=>result.status==='rejected');
     if(failure)throw failure.reason;
-    $('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';
+    $('status').textContent='整段中英字幕已准备好，播放视频即可自动跟随。';renderExportStatus();
   }catch(error){if(version===generation&&doc===target){$('status').textContent=`准备中断：${error.message} 已完成的译文已缓存。`;$('status').classList.add('error');$('resume-translation').hidden=false;}}
   finally{busy=false;$('stop').disabled=true;if(doc&&doc!==target)translateVisible();}
 }
-function loadDoc(value){doc=value;page=0;playingId='';generation++;$('empty').hidden=true;$('reader').hidden=false;$('title').textContent=doc.title;$('status').textContent=`${doc.cached?'已读取缓存':'字幕已获取'} · ${doc.rows.length} 条 · ${doc.lang}`;$('search').value='';render();translateVisible();renderOverview();}
+function loadDoc(value){doc=value;page=0;playingId='';generation++;$('empty').hidden=true;$('reader').hidden=false;$('title').textContent=doc.title;$('status').textContent=`${doc.cached?'已读取缓存':'字幕已获取'} · ${doc.rows.length} 条 · ${doc.lang}`;$('search').value='';render();translateVisible();renderOverview();renderExportStatus();}
 $('load').onclick=async()=>{const button=$('load');button.disabled=true;button.textContent='正在获取字幕…';try{loadDoc(await call('transcript'));}catch(error){button.insertAdjacentElement('afterend',Object.assign(document.createElement('p'),{className:'status error',textContent:error.message}));}finally{button.disabled=false;button.textContent='获取当前视频完整字幕';}};
 $('search').oninput=()=>{page=0;if($('search').value)$('follow').checked=false;render();};$('language').onchange=render;
 $('prev').onclick=()=>{page--;$('follow').checked=false;render();};$('next').onclick=()=>{page++;$('follow').checked=false;render();};
@@ -71,6 +71,8 @@ $('explain').onclick=async()=>{if(!selected||busy)return;busy=true;$('answer').t
 $('save-note').onclick=()=>selected&&saveNote(selected);
 function renderOverview(){const nodes=[];for(const [i,part] of Object.entries(doc?.overviews||{})){const box=document.createElement('section');box.className='overview-part';const heading=document.createElement('h2'),summary=document.createElement('p');heading.textContent=`第 ${Number(i)+1} 部分`;summary.textContent=part.summary;box.append(heading,summary);for(const chapter of part.chapters){const p=document.createElement('p');p.className='quote';p.textContent=`${stamp(chapter.time)} · ${chapter.title} — ${chapter.text}`;p.onclick=()=>call('seek',{time:chapter.time});box.append(p);}nodes.push(box);}$('overview').replaceChildren(...nodes);}
 $('generate').onclick=async()=>{if(!doc){$('overview-status').textContent='请先获取完整字幕。';return;}if(busy)return;busy=true;$('overview-status').textContent='正在生成概览…';try{doc.overviews=await call('overview',{videoId:doc.id});renderOverview();$('overview-status').textContent='概览已生成并缓存。';}catch(error){$('overview-status').textContent=error.message;}finally{busy=false;}};
+function renderExportStatus(){if(!doc){$('export-status').textContent='请先获取并完成整段字幕。';$('export-summary').replaceChildren();return;}const translated=doc.rows.filter(row=>doc.translations[row.id]).length,parts=Object.values(doc.studyGuide?.parts||{}),sentences=parts.reduce((sum,part)=>sum+part.keySentences.length,0),phrases=parts.reduce((sum,part)=>sum+part.phrases.length,0);$('export-status').classList.remove('error');$('export-status').textContent=doc.studyGuide?`导出资料已缓存：${doc.rows.length} 条对话、${sentences} 个重点句、${phrases} 个重点词组。`:`字幕准备：${translated} / ${doc.rows.length} 条。完成后可生成 AI 学习重点。`;$('export-summary').replaceChildren();}
+$('generate-export').onclick=async()=>{if(!doc){renderExportStatus();return;}if(busy){$('export-status').textContent='字幕或其他 AI 任务仍在处理中，完成后即可导出。';return;}if(doc.rows.some(row=>!doc.translations[row.id])){await translateVisible();if(doc.rows.some(row=>!doc.translations[row.id])){$('export-status').textContent='仍有字幕尚未翻译完成，系统会自动继续；完成后再打开导出页。';return;}}busy=true;$('generate-export').disabled=true;$('export-status').textContent=doc.studyGuide?'正在打开已缓存的导出资料…':'正在用 AI 整理重点句和词组，较长视频可能需要数分钟…';try{doc.studyGuide=await call('studyGuide',{videoId:doc.id});renderExportStatus();await call('openExport',{videoId:doc.id});}catch(error){$('export-status').textContent=`导出准备失败：${error.message} 已完成部分会缓存，下次将继续。`;$('export-status').classList.add('error');}finally{busy=false;$('generate-export').disabled=false;}};
 function renderNotes(){const q=$('note-search').value.trim().toLocaleLowerCase(),matches=notes.filter(note=>JSON.stringify(note).toLocaleLowerCase().includes(q));$('note-count').textContent=notes.length;$('notes').replaceChildren(...matches.map(note=>{const box=document.createElement('article');box.className='note';box.innerHTML=`<small>${note.title||''}</small><p class="english"></p><p class="translation"></p>`;box.querySelector('.english').textContent=note.text;box.querySelector('.translation').textContent=note.translation||'尚无译文';const del=document.createElement('button');del.textContent='删除';del.onclick=async()=>{notes=await call('deleteNote',{id:note.id});renderNotes();};box.append(del);return box;}));}
 $('note-search').oninput=renderNotes;
 async function loadSettings(){const settings=await call('getSettings');$('settings-status').textContent=`DeepSeek：${settings.keySaved?'已保存':'未配置'} · Supadata：${settings.supadataSaved?'已保存':'未配置'}`;}

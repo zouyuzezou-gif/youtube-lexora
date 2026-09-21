@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>YouTube Lexora</title><link rel="stylesheet" href="sidepanel.css"></head>
 <body>
   <header><div class="brand"><b>L·</b><div><strong>YouTube Lexora</strong><small>在你的 YouTube 账号中学习</small></div></div><span id="video-state" class="pill">等待视频</span></header>
-  <nav><button data-tab="transcript" class="active">中英字幕</button><button data-tab="overview">概览</button><button data-tab="notes">笔记 <span id="note-count">0</span></button><button data-tab="settings">设置</button></nav>
+  <nav><button data-tab="transcript" class="active">中英字幕</button><button data-tab="overview">概览</button><button data-tab="export">导出</button><button data-tab="notes">笔记 <span id="note-count">0</span></button><button data-tab="settings">设置</button></nav>
   <main>
     <section id="transcript-tab" class="tab">
       <div id="empty"><div class="symbol">Aa</div><h1>把视频变成学习资料</h1><p>在 YouTube 打开英语视频，然后获取完整字幕。先准备整段中英字幕，再播放并自动跟随。整段翻译按完整字幕量计费。</p><button id="load" class="primary">获取当前视频完整字幕</button></div>
@@ -15,6 +15,7 @@
       </div>
     </section>
     <section id="overview-tab" class="tab" hidden><h1>视频概览</h1><p class="muted">根据完整字幕生成中文概要、章节与值得学习的原句。</p><button id="generate" class="primary">生成概览</button><p id="overview-status" class="status">请先获取完整字幕。</p><div id="overview"></div></section>
+    <section id="export-tab" class="tab" hidden><h1>导出学习语料</h1><div class="notice">导出视频中的全部中英对话，并使用 DeepSeek 整理重点句和地道词组。生成后的独立文档可以直接打印、另存为 PDF 或保存为 HTML 文件。</div><button id="generate-export" class="primary">AI 整理并打开导出页</button><p id="export-status" class="status">请先获取并完成整段字幕。</p><div id="export-summary"></div></section>
     <section id="notes-tab" class="tab" hidden><h1>学习笔记</h1><input id="note-search" type="search" placeholder="搜索笔记…"><div id="notes"></div></section>
     <section id="settings-tab" class="tab" hidden><h1>服务设置</h1><div class="notice">密钥保存在当前 Chrome 配置的扩展存储中。不要在共享电脑上保存个人密钥。</div><label>DeepSeek API 密钥<input id="deepseek-key" type="password" autocomplete="off" placeholder="留空可保留已保存密钥"></label><label>Supadata API 密钥<input id="supadata-key" type="password" autocomplete="off" placeholder="留空可保留已保存密钥"></label><label class="check"><input id="clear-deepseek" type="checkbox"> 删除 DeepSeek 密钥</label><label class="check"><input id="clear-supadata" type="checkbox"> 删除 Supadata 密钥</label><div class="actions"><button id="save-settings" class="primary">保存设置</button><button id="test-ai">测试 DeepSeek</button></div><p id="settings-status" class="status"></p><p class="muted">完整字幕由 Supadata 获取；翻译、解释和概览由 DeepSeek 处理，两项服务分别计费。</p></section>
   </main>

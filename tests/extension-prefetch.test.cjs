@@ -6,7 +6,7 @@ const source=fs.readFileSync(require('node:path').join(__dirname,'../extension/s
 const fn=source.slice(source.indexOf('async function translateVisible(){'),source.indexOf('function loadDoc('));
 function setup(call){
   const elements=new Map();
-  const context={doc:{id:'video',rows:Array.from({length:75},(_,i)=>({id:String(i)})),translations:{'0':'cached'}},busy:false,generation:0,batchSize:30,parallelBatches:5,C:{retryDelayMs(){return 0;}},render(){},setTimeout(fn){fn();},call,$(id){if(!elements.has(id))elements.set(id,{classList:{remove(){},add(){}}});return elements.get(id);}};
+  const context={doc:{id:'video',rows:Array.from({length:75},(_,i)=>({id:String(i)})),translations:{'0':'cached'}},busy:false,generation:0,batchSize:30,parallelBatches:5,C:{retryDelayMs(){return 0;}},render(){},renderExportStatus(){},setTimeout(fn){fn();},call,$(id){if(!elements.has(id))elements.set(id,{classList:{remove(){},add(){}}});return elements.get(id);}};
   vm.createContext(context);vm.runInContext(fn,context);return context;
 }
 test('prefetch translates the entire video including unseen pages and skips cache',async()=>{

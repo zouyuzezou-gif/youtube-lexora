@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>YouTube Lexora 学习语料</title>
+  <link rel="stylesheet" href="export.css">
+</head>
+<body>
+  <div class="toolbar">
+    <strong>YouTube Lexora</strong>
+    <span id="export-status">正在载入学习语料…</span>
+    <button id="save-html">保存 HTML</button>
+    <button id="print">打印／另存 PDF</button>
+  </div>
+  <main id="document" hidden>
+    <header class="cover">
+      <p class="eyebrow">YouTube Lexora · 英语学习语料</p>
+      <h1 id="title"></h1>
+      <p class="meta"><a id="source" target="_blank" rel="noreferrer">打开原视频</a> · <span id="created"></span></p>
+    </header>
+    <section id="guide">
+      <h2>AI 学习重点</h2>
+      <div id="guide-parts"></div>
+    </section>
+    <section>
+      <h2>完整中英对话</h2>
+      <p id="transcript-count" class="meta"></p>
+      <div id="transcript"></div>
+    </section>
+    <footer>由 YouTube Lexora 根据视频字幕生成。AI 整理内容可能存在偏差，请结合原视频核对。</footer>
+  </main>
+  <script src="export.js"></script>
+</body>
+</html>

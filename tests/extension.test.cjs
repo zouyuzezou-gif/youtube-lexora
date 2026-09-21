@@ -26,3 +26,9 @@ test('very long transcripts are compacted into readable rows and retain complete
 test('retry backoff respects server guidance and remains bounded',()=>{
   assert.equal(C.retryDelayMs(0),700);assert.equal(C.retryDelayMs(2),2800);assert.equal(C.retryDelayMs(0,'3'),3000);assert.equal(C.retryDelayMs(0,'60'),8000);
 });
+test('study guide keeps key sentences and phrases grounded in transcript rows',()=>{
+  const rows=[{id:'7',time:42,text:'We need to rule that out.',translation:'我们需要排除这种可能。'}];
+  const messages=C.messagesFor('studyGuide',{title:'Lecture',rows});assert.match(messages[0].content,/重点句/);
+  const guide=C.parseStudyGuide(JSON.stringify({summary:'排除一种可能',keySentences:[{id:'7',translation:'我们需要排除这种可能。',reason:'常用推理表达'}],phrases:[{id:'7',phrase:'rule out',meaning:'排除'}]}),rows);
+  assert.equal(guide.keySentences[0].time,42);assert.equal(guide.phrases[0].phrase,'rule out');assert.throws(()=>C.parseStudyGuide(JSON.stringify({summary:'x',keySentences:[{id:'missing'}],phrases:[]}),rows),/无效字幕定位/);
+});
